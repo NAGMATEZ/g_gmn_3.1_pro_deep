@@ -3,258 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Budget Manager</title>
+    <title>Budget Manager PWA</title>
     
+    <meta name="theme-color" content="#4caf50">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4CAF50">
+    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="icon-192.svg">
-
+    
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 
     <style>
         :root {
-            --color-primary: #4CAF50;
-            --color-danger: #F44336;
-            --color-bg: #f4f4f9;
-            --color-card: #ffffff;
+            --color-primary: #4caf50;
+            --color-primary-dark: #388e3c;
+            --color-bg: #f9f9f9;
+            --color-surface: #ffffff;
             --color-text: #333333;
-            --color-border: #dddddd;
+            --color-text-light: #777777;
+            --color-danger: #f44336;
+            --color-border: #e0e0e0;
+            --shadow: 0 2px 8px rgba(0,0,0,0.1);
+            --border-radius: 12px;
+            --spacing: 16px;
         }
 
         @media (prefers-color-scheme: dark) {
             :root {
                 --color-bg: #121212;
-                --color-card: #1e1e1e;
+                --color-surface: #1e1e1e;
                 --color-text: #e0e0e0;
+                --color-text-light: #aaaaaa;
                 --color-border: #333333;
             }
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        body { background-color: var(--color-bg); color: var(--color-text); padding-bottom: 70px; }
-
-        .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+        body { background-color: var(--color-bg); color: var(--color-text); padding-bottom: 70px; -webkit-tap-highlight-color: transparent; }
         
-        .card { background: var(--color-card); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        /* Layout & Utilities */
+        .container { padding: var(--spacing); max-width: 600px; margin: 0 auto; }
+        .card { background: var(--color-surface); border-radius: var(--border-radius); padding: var(--spacing); margin-bottom: var(--spacing); box-shadow: var(--shadow); }
+        .hidden { display: none !important; }
+        h1, h2, h3 { margin-bottom: 12px; }
+        .text-center { text-align: center; }
         
-        button { background: var(--color-primary); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; min-height: 44px; width: 100%; margin-top: 8px; }
+        /* Buttons */
+        button { background: var(--color-primary); color: white; border: none; padding: 12px 16px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; transition: opacity 0.2s; }
+        button:active { opacity: 0.8; }
         button.danger { background: var(--color-danger); }
+        button.secondary { background: var(--color-border); color: var(--color-text); }
+        .fab { position: fixed; bottom: 80px; right: 20px; width: 56px; height: 56px; border-radius: 50%; box-shadow: var(--shadow); font-size: 24px; padding: 0; z-index: 100; }
         
-        .input-group { margin-bottom: 16px; }
-        .input-group label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: bold; }
+        /* Inputs */
+        input, select { width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 16px; margin-bottom: var(--spacing); min-height: 44px; }
         
-        input, select { width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg); color: var(--color-text); min-height: 44px; font-size: 16px; }
+        /* Currency Input Wrapper */
+        .currency-wrapper { display: flex; align-items: center; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; margin-bottom: var(--spacing); padding: 0 12px; }
+        .currency-wrapper input { border: none; margin-bottom: 0; padding: 12px 4px; flex: 1; min-height: 44px; outline: none; background: transparent; }
+        .currency-symbol { font-size: 16px; color: var(--color-text); font-weight: 500; user-select: none; }
         
-        .currency-input-wrapper { display: flex; align-items: center; position: relative; }
-        .currency-symbol { position: absolute; font-weight: bold; pointer-events: none; }
-        .currency-symbol-left { left: 12px; }
-        .currency-symbol-right { right: 12px; }
-        .input-left-pad { padding-left: 30px; }
-        .input-right-pad { padding-right: 40px; }
-
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--color-card); display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid var(--color-border); box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
-        .nav-item { text-align: center; font-size: 12px; cursor: pointer; min-width: 44px; min-height: 44px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        /* Navigation Tab Bar */
+        .tab-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--color-surface); display: flex; justify-content: space-around; padding: 10px 0 calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; }
+        .tab-item { display: flex; flex-direction: column; align-items: center; color: var(--color-text-light); font-size: 12px; cursor: pointer; min-width: 44px; min-height: 44px; }
+        .tab-item.active { color: var(--color-primary); }
+        .tab-icon { font-size: 20px; margin-bottom: 4px; }
         
-        .screen { display: none; }
-        .screen.active { display: block; }
+        /* Banners & Toasts */
+        .banner { background: var(--color-primary-dark); color: white; padding: 12px; text-align: center; font-size: 14px; z-index: 2000; position: sticky; top: 0; }
+        .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #323232; color: white; padding: 12px 20px; border-radius: 24px; font-size: 14px; z-index: 3000; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         
-        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--color-text); color: var(--color-bg); padding: 12px 24px; border-radius: 20px; z-index: 1000; font-size: 14px; display: none; }
-        .banner { background: var(--color-primary); color: white; padding: 12px; text-align: center; font-weight: bold; display: none; cursor: pointer; }
-        
-        .flex-between { display: flex; justify-content: space-between; align-items: center; }
-        .badge-danger { background: var(--color-danger); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
-        .progress-bar-container { background: var(--color-border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 8px; }
-        .progress-bar { background: var(--color-primary); height: 100%; width: 0%; transition: width 0.3s; }
-        
-        .list-item { border-bottom: 1px solid var(--color-border); padding: 12px 0; display: flex; justify-content: space-between; align-items: center; }
+        /* Lists */
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
         .list-item:last-child { border-bottom: none; }
+        .item-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-right: 12px; }
+        .item-details { flex: 1; }
+        .item-title { font-weight: 600; margin-bottom: 4px; }
+        .item-subtitle { font-size: 12px; color: var(--color-text-light); }
         
-        #install-prompt { background: var(--color-primary); color: white; padding: 16px; margin-bottom: 16px; border-radius: 12px; display: none; }
+        /* Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 4000; padding: 20px; }
+        .modal-content { background: var(--color-surface); width: 100%; max-width: 400px; border-radius: var(--border-radius); padding: 24px; box-shadow: var(--shadow); }
+        
+        /* Overflows & Progress */
+        .overflow-badge { background: var(--color-danger); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-top: 8px; display: inline-block; }
+        progress { width: 100%; height: 12px; border-radius: 6px; overflow: hidden; margin: 8px 0; }
+        progress::-webkit-progress-bar { background-color: var(--color-border); }
+        progress::-webkit-progress-value { background-color: var(--color-primary); }
     </style>
 </head>
 <body>
 
-    <div id="standalone-banner" class="banner">Telepítsd az appot a legjobb élményért! (Kattints ide)</div>
-    <div id="update-toast" class="toast" onclick="skipWaiting()">Frissítés elérhető — Újratöltés</div>
-    <div id="action-toast" class="toast">Sikeres mentés</div>
+    <div id="install-banner" class="banner hidden">
+        Telepítsd az appot a legjobb élményért! <button id="btn-install" style="width:auto; padding:6px 12px; margin-left:12px; min-height:auto;">Telepítés</button>
+    </div>
+    <div id="update-toast" class="toast hidden">
+        <span>Frissítés elérhető!</span>
+        <button id="btn-update" style="width:auto; padding:6px 12px; min-height:auto;">Újratöltés</button>
+    </div>
+    <div id="action-toast" class="toast hidden"></div>
 
-    <div id="currency-setup" class="container" style="display: none; height: 100vh; align-items: center;">
-        <div class="card" style="width: 100%;">
+    <div id="currency-modal" class="modal-overlay hidden">
+        <div class="modal-content">
             <h2>Válassz pénznemet</h2>
-            <div class="input-group" style="margin-top: 20px;">
-                <select id="currency-select">
-                    <option value="HUF">HUF - Ft</option>
-                    <option value="EUR">EUR - €</option>
-                    <option value="USD">USD - $</option>
-                </select>
-            </div>
-            <button onclick="saveCurrency()">Mentés és Indítás</button>
+            <p style="margin-bottom: 16px; font-size: 14px; color: var(--color-text-light);">Ezt az alkalmazás mindenhol használni fogja.</p>
+            <select id="currency-select">
+                <option value="HUF">HUF (Ft)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="USD">USD ($)</option>
+            </select>
+            <button onclick="app.saveCurrency()">Mentés és Indítás</button>
         </div>
     </div>
 
-    <div id="app-content" style="display: none;">
-        
-        <div id="screen-dashboard" class="screen active container">
-            <div id="install-prompt" onclick="installPWA()">
-                <strong>Telepítés</strong><br>Adjd hozzá a kezdőképernyőhöz az offline használathoz!
-            </div>
-            <div class="card">
-                <h3>Aktuális havi egyenleg</h3>
-                <h1 id="dashboard-balance">0</h1>
-                <p id="dashboard-prediction" style="margin-top: 10px; font-size: 14px; color: var(--color-danger);"></p>
-            </div>
-            <div class="card">
-                <canvas id="expenseChart" width="400" height="400"></canvas>
-            </div>
-            <button onclick="switchTab('transaction')">+ Tranzakció</button>
+    <div id="view-dashboard" class="container view">
+        <h1 class="text-center">Áttekintés</h1>
+        <div class="card text-center">
+            <h3>Havi Egyenleg</h3>
+            <h1 id="dash-balance" style="color: var(--color-primary); margin: 8px 0;">0</h1>
+            <p id="dash-income-expense" class="item-subtitle"></p>
         </div>
-
-        <div id="screen-transaction" class="screen container">
-            <div class="card">
-                <h2>Új Tranzakció</h2>
-                <div class="input-group">
-                    <label>Típus</label>
-                    <select id="tx-type"><option value="expense">Kiadás</option><option value="income">Bevétel</option></select>
-                </div>
-                <div class="input-group">
-                    <label>Összeg</label>
-                    <div class="currency-input-wrapper">
-                        <span class="currency-symbol currency-symbol-left" id="tx-symbol-left"></span>
-                        <input type="number" id="tx-amount" min="0" step="0.01">
-                        <span class="currency-symbol currency-symbol-right" id="tx-symbol-right"></span>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label>Kategória</label>
-                    <select id="tx-category"></select>
-                </div>
-                <div class="input-group">
-                    <label>Dátum</label>
-                    <input type="date" id="tx-date">
-                </div>
-                <div class="input-group">
-                    <label>Megjegyzés</label>
-                    <input type="text" id="tx-note">
-                </div>
-                <button onclick="saveTransaction()">Mentés</button>
-            </div>
-            <div class="card" id="tx-list"></div>
+        <div class="card">
+            <h3 class="text-center">Kiadások kategóriánként</h3>
+            <canvas id="expenseChart" width="100" height="100"></canvas>
+            <div id="dash-prediction" style="margin-top: 16px; font-size: 14px; font-weight: 500; text-align: center; color: var(--color-text-light);"></div>
         </div>
-
-        <div id="screen-categories" class="screen container">
-            <div class="card">
-                <h2>Új Kategória</h2>
-                <div class="input-group">
-                    <label>Név (Ikonnal pl. 🛒 Élelmiszer)</label>
-                    <input type="text" id="cat-name">
-                </div>
-                <div class="input-group">
-                    <label>Szín</label>
-                    <input type="color" id="cat-color" value="#4CAF50">
-                </div>
-                <div class="input-group">
-                    <label>Havi Limit (Opcionális)</label>
-                    <div class="currency-input-wrapper">
-                        <span class="currency-symbol currency-symbol-left" id="cat-symbol-left"></span>
-                        <input type="number" id="cat-limit" min="0">
-                        <span class="currency-symbol currency-symbol-right" id="cat-symbol-right"></span>
-                    </div>
-                </div>
-                <button onclick="saveCategory()">Kategória Mentése</button>
-            </div>
-            <div id="limit-transfer-section" class="card" style="display:none; border: 2px solid var(--color-danger);">
-                <h3 style="color: var(--color-danger);">Limit túllépés észlelve!</h3>
-                <p id="limit-warning-text" style="font-size: 14px; margin-bottom: 10px;"></p>
-                <select id="limit-transfer-from"></select>
-                <button onclick="transferLimit()" style="background: #ff9800;">Vond le a maradékból</button>
-            </div>
-            <div class="card" id="cat-list"></div>
-        </div>
-
-        <div id="screen-savings" class="screen container">
-            <div class="card">
-                <h2>Megtakarítási Cél</h2>
-                <div class="input-group">
-                    <label>Cél neve</label>
-                    <input type="text" id="sav-name">
-                </div>
-                <div class="input-group">
-                    <label>Célösszeg</label>
-                    <div class="currency-input-wrapper">
-                        <span class="currency-symbol currency-symbol-left" id="sav-target-symbol-left"></span>
-                        <input type="number" id="sav-target">
-                        <span class="currency-symbol currency-symbol-right" id="sav-target-symbol-right"></span>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label>Jelenlegi Állás</label>
-                    <div class="currency-input-wrapper">
-                        <span class="currency-symbol currency-symbol-left" id="sav-current-symbol-left"></span>
-                        <input type="number" id="sav-current">
-                        <span class="currency-symbol currency-symbol-right" id="sav-current-symbol-right"></span>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label>Határidő</label>
-                    <input type="date" id="sav-deadline">
-                </div>
-                <button onclick="saveSavingsGoal()">Cél Mentése</button>
-            </div>
-            <div class="card" id="active-savings-card" style="display:none;">
-                <h3 id="act-sav-name"></h3>
-                <div class="flex-between">
-                    <span id="act-sav-progress-text"></span>
-                    <span id="act-sav-deadline"></span>
-                </div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="act-sav-bar"></div>
-                </div>
-                <button onclick="addToSavings()">Hozzáadjuk (+ tranzakció)</button>
-            </div>
-        </div>
-
-        <div id="screen-ocr" class="screen container">
-            <div class="card">
-                <h2>Nyugta / Képernyőkép olvasása</h2>
-                <input type="file" id="ocr-file" accept="image/*" style="margin-bottom: 16px;">
-                <button onclick="processOCR()" id="ocr-btn">Kép Elemzése (OCR)</button>
-                <div id="ocr-status" style="margin-top: 16px; font-size: 14px;"></div>
-                <div id="ocr-raw" style="margin-top: 8px; font-size: 12px; color: #666; white-space: pre-wrap;"></div>
-            </div>
-            <div class="card" id="ocr-form-card" style="display:none;">
-                <h3>Felismert Adatok Javítása</h3>
-                <div class="input-group">
-                    <label>Összeg</label>
-                    <div class="currency-input-wrapper">
-                        <span class="currency-symbol currency-symbol-left" id="ocr-symbol-left"></span>
-                        <input type="number" id="ocr-amount" step="0.01">
-                        <span class="currency-symbol currency-symbol-right" id="ocr-symbol-right"></span>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label>Dátum</label>
-                    <input type="date" id="ocr-date">
-                </div>
-                <button onclick="saveOCRTransaction()">Mentés Tranzakcióként</button>
-            </div>
-        </div>
-
-        <nav class="bottom-nav">
-            <div class="nav-item" onclick="switchTab('dashboard')">📊<br>Áttekintő</div>
-            <div class="nav-item" onclick="switchTab('transaction')">💸<br>Tranzakciók</div>
-            <div class="nav-item" onclick="switchTab('categories')">📁<br>Kategóriák</div>
-            <div class="nav-item" onclick="switchTab('savings')">🎯<br>Célok</div>
-            <div class="nav-item" onclick="switchTab('ocr')">📷<br>OCR</div>
-        </nav>
+        <button class="fab" onclick="app.navigate('transaction-form', {type: 'expense'})">+</button>
     </div>
+
+    <div id="view-transactions" class="container view hidden">
+        <h1>Tranzakciók</h1>
+        <button onclick="app.navigate('transaction-form')" style="margin-bottom: 16px;">Új Tranzakció</button>
+        <div id="transaction-list" class="card"></div>
+    </div>
+
+    <div id="view-transaction-form" class="container view hidden">
+        <h1 id="tx-form-title">Új Tranzakció</h1>
+        <div class="card">
+            <input type="hidden" id="tx-id">
+            <label>Típus</label>
+            <select id="tx-type">
+                <option value="expense">Kiadás</option>
+                <option value="income">Bevétel</option>
+            </select>
+            
+            <label>Összeg</label>
+            <div class="currency-wrapper" data-input="tx-amount">
+                </div>
+            
+            <label>Kategória</label>
+            <select id="tx-category"></select>
+            
+            <label>Dátum</label>
+            <input type="date" id="tx-date" required>
+            
+            <label>Megjegyzés</label>
+            <input type="text" id="tx-note" placeholder="Opcionális">
+            
+            <div style="display:flex; gap: 10px; margin-top: 16px;">
+                <button class="secondary" onclick="app.navigate('transactions')">Mégse</button>
+                <button onclick="app.saveTransaction()">Mentés</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-categories" class="container view hidden">
+        <h1>Kategóriák</h1>
+        <button onclick="app.showCategoryForm()" style="margin-bottom: 16px;">Új Kategória</button>
+        <div id="category-list" class="card"></div>
+    </div>
+
+    <div id="view-category-form" class="container view hidden">
+        <h1 id="cat-form-title">Új Kategória</h1>
+        <div class="card">
+            <input type="hidden" id="cat-id">
+            <label>Név</label>
+            <input type="text" id="cat-name" required>
+            
+            <label>Ikon (Emoji)</label>
+            <input type="text" id="cat-icon" maxlength="2" placeholder="🍔">
+            
+            <label>Szín</label>
+            <input type="color" id="cat-color" value="#4caf50" style="padding:4px; height: 44px;">
+            
+            <label>Havi Limit (Opcionális)</label>
+            <div class="currency-wrapper" data-input="cat-limit"></div>
+            
+            <div style="display:flex; gap: 10px; margin-top: 16px;">
+                <button class="secondary" onclick="app.navigate('categories')">Mégse</button>
+                <button onclick="app.saveCategory()">Mentés</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="limit-transfer-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2>Limit túllépés</h2>
+            <p id="transfer-desc" style="margin-bottom:16px; font-size:14px;"></p>
+            <select id="transfer-source-cat"></select>
+            <p id="transfer-error" class="hidden" style="color:var(--color-danger); font-size:14px; margin-bottom:10px;">Nincs elég maradék más kategóriában.</p>
+            <div style="display:flex; gap: 10px; margin-top: 16px;">
+                <button class="secondary" onclick="document.getElementById('limit-transfer-modal').classList.add('hidden')">Mégse</button>
+                <button id="transfer-confirm-btn" onclick="app.executeTransfer()">Átvezetés</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-savings" class="container view hidden">
+        <h1>Megtakarítás</h1>
+        <div class="card" id="savings-active">
+            </div>
+        <div class="card" id="savings-form-card">
+            <h3>Cél beállítása</h3>
+            <label>Név</label>
+            <input type="text" id="sav-name">
+            <label>Célösszeg</label>
+            <div class="currency-wrapper" data-input="sav-target"></div>
+            <label>Jelenlegi állás</label>
+            <div class="currency-wrapper" data-input="sav-current"></div>
+            <button onclick="app.saveSavingsGoal()">Cél mentése</button>
+        </div>
+    </div>
+
+    <div id="view-ocr" class="container view hidden">
+        <h1>Számla szkennelés</h1>
+        <div class="card text-center">
+            <p style="margin-bottom: 16px; color: var(--color-text-light);">Tölts fel egy nyugtát vagy screenshotot az adatok kinyeréséhez (On-device OCR).</p>
+            <input type="file" id="ocr-upload" accept="image/*" style="display:none;" onchange="app.processOCR(event)">
+            <button onclick="document.getElementById('ocr-upload').click()">Kép kiválasztása</button>
+            <div id="ocr-status" style="margin-top:16px; font-weight:bold;"></div>
+            <div id="ocr-raw-text" class="hidden" style="margin-top:16px; padding:10px; background:#eee; color:#333; font-size:12px; text-align:left; white-space:pre-wrap; border-radius:8px;"></div>
+        </div>
+    </div>
+
+    <nav class="tab-bar">
+        <div class="tab-item active" onclick="app.navigate('dashboard')"><div class="tab-icon">📊</div>Áttekintés</div>
+        <div class="tab-item" onclick="app.navigate('transactions')"><div class="tab-icon">💳</div>Tételek</div>
+        <div class="tab-item" onclick="app.navigate('categories')"><div class="tab-icon">📁</div>Kategóriák</div>
+        <div class="tab-item" onclick="app.navigate('savings')"><div class="tab-icon">🎯</div>Célok</div>
+        <div class="tab-item" onclick="app.navigate('ocr')"><div class="tab-icon">📸</div>Fotó</div>
+    </nav>
 
     <script>
-        // DB Setup
-        const db = new Dexie("BudgetDB");
+        // -----------------------------------------
+        // 1. DB Initialization (Dexie)
+        // -----------------------------------------
+        const db = new Dexie("BudgetManagerDB");
         db.version(1).stores({
             transactions: '++id, amount, categoryId, date, note, source, currency',
             categories: '++id, name, icon, monthlyLimit, color',
@@ -262,499 +259,605 @@
             settings: 'key, value'
         });
 
-        let activeCurrency = 'HUF';
-        let chartInstance = null;
-        let deferredPrompt;
-
-        // PWA Setup
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./service-worker.js').then(reg => {
-                reg.addEventListener('updatefound', () => {
-                    const newWorker = reg.installing;
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            document.getElementById('update-toast').style.display = 'block';
-                        }
-                    });
-                });
-            });
-        }
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            document.getElementById('install-prompt').style.display = 'block';
-            document.getElementById('standalone-banner').style.display = 'block';
-        });
-
-        function installPWA() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then(() => {
-                    deferredPrompt = null;
-                    document.getElementById('install-prompt').style.display = 'none';
-                    document.getElementById('standalone-banner').style.display = 'none';
-                });
-            }
-        }
-
-        function skipWaiting() {
-            navigator.serviceWorker.getRegistration().then(reg => {
-                if (reg && reg.waiting) {
-                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-                }
-            });
-            window.location.reload();
-        }
-
-        // Standalone Check
-        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
-            document.getElementById('standalone-banner').style.display = 'none';
-            document.getElementById('install-prompt').style.display = 'none';
-        } else {
-            document.getElementById('standalone-banner').style.display = 'block';
-        }
-
-        // Initialization
-        window.onload = async () => {
-            const currSetting = await db.settings.get('currency');
-            if (!currSetting) {
-                document.getElementById('currency-setup').style.display = 'flex';
-            } else {
-                activeCurrency = currSetting.value;
-                document.getElementById('app-content').style.display = 'block';
-                updateCurrencyUI();
-                await loadDashboard();
-                loadCategories();
-                loadTransactions();
-                loadSavings();
-            }
-            document.getElementById('tx-date').valueAsDate = new Date();
+        // -----------------------------------------
+        // 2. State & Configuration
+        // -----------------------------------------
+        const appState = {
+            currency: null,
+            currentView: 'dashboard',
+            chartInstance: null,
+            pendingTransfer: null
         };
 
-        async function saveCurrency() {
-            const val = document.getElementById('currency-select').value;
-            await db.settings.put({ key: 'currency', value: val });
-            activeCurrency = val;
-            document.getElementById('currency-setup').style.display = 'none';
-            document.getElementById('app-content').style.display = 'block';
-            updateCurrencyUI();
-            await loadDashboard();
-        }
+        const CURRENCY_CONFIG = {
+            HUF: { symbol: 'Ft', pos: 'after', space: true },
+            EUR: { symbol: '€', pos: 'before', space: true },
+            USD: { symbol: '$', pos: 'before', space: false }
+        };
 
-        // Currency Formatting & UI
-        function formatMoney(amount) {
-            if (activeCurrency === 'HUF') return `${amount.toLocaleString('hu-HU')} Ft`;
-            if (activeCurrency === 'EUR') return `€ ${amount.toLocaleString('de-DE', {minimumFractionDigits: 2})}`;
-            if (activeCurrency === 'USD') return `$${amount.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
-            return amount;
-        }
-
-        function updateCurrencyUI() {
-            const inputs = ['tx', 'cat', 'sav-target', 'sav-current', 'ocr'];
-            inputs.forEach(prefix => {
-                const leftSym = document.getElementById(`${prefix}-symbol-left`);
-                const rightSym = document.getElementById(`${prefix}-symbol-right`);
-                const inputEl = document.getElementById(prefix === 'cat' ? 'cat-limit' : prefix === 'sav-target' ? 'sav-target' : prefix === 'sav-current' ? 'sav-current' : `${prefix}-amount`);
-                
-                if(!leftSym || !rightSym || !inputEl) return;
-
-                leftSym.innerText = '';
-                rightSym.innerText = '';
-                inputEl.classList.remove('input-left-pad', 'input-right-pad');
-
-                if (activeCurrency === 'HUF') {
-                    rightSym.innerText = 'Ft';
-                    inputEl.classList.add('input-right-pad');
-                } else if (activeCurrency === 'EUR') {
-                    leftSym.innerText = '€';
-                    inputEl.classList.add('input-left-pad');
-                } else if (activeCurrency === 'USD') {
-                    leftSym.innerText = '$';
-                    inputEl.classList.add('input-left-pad');
-                }
-            });
+        // -----------------------------------------
+        // 3. Utility Functions
+        // -----------------------------------------
+        function formatCurrency(amount, curr = appState.currency) {
+            const conf = CURRENCY_CONFIG[curr];
+            const num = Number(amount) || 0;
+            let formatted = num.toLocaleString(
+                curr === 'HUF' ? 'hu-HU' : curr === 'EUR' ? 'de-DE' : 'en-US',
+                { minimumFractionDigits: curr === 'HUF' ? 0 : 2, maximumFractionDigits: curr === 'HUF' ? 0 : 2 }
+            );
+            if (curr === 'HUF') return `${formatted} ${conf.symbol}`;
+            if (curr === 'EUR') return `${conf.symbol} ${formatted}`;
+            return `${conf.symbol}${formatted}`;
         }
 
         function showToast(msg) {
-            const toast = document.getElementById('action-toast');
-            toast.innerText = msg;
-            toast.style.display = 'block';
-            setTimeout(() => toast.style.display = 'none', 3000);
+            const t = document.getElementById('action-toast');
+            t.textContent = msg;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 3000);
         }
 
-        function switchTab(tabId) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.getElementById(`screen-${tabId}`).classList.add('active');
-            if(tabId === 'dashboard') loadDashboard();
-            if(tabId === 'categories') loadCategories();
-            if(tabId === 'transaction') {
-                loadCategoriesForSelect('tx-category');
-                loadTransactions();
-            }
-            if(tabId === 'savings') loadSavings();
-        }
-
-        // Transactions CRUD
-        async function saveTransaction() {
-            const amount = parseFloat(document.getElementById('tx-amount').value);
-            const type = document.getElementById('tx-type').value;
-            const categoryId = parseInt(document.getElementById('tx-category').value);
-            const date = document.getElementById('tx-date').value;
-            const note = document.getElementById('tx-note').value;
-
-            if (!amount || !categoryId || !date) return alert('Minden mezőt ki kell tölteni!');
-
-            const finalAmount = type === 'expense' ? -Math.abs(amount) : Math.abs(amount);
-
-            await db.transactions.add({
-                amount: finalAmount,
-                categoryId,
-                date,
-                note,
-                source: 'manual',
-                currency: activeCurrency
-            });
-
-            document.getElementById('tx-amount').value = '';
-            document.getElementById('tx-note').value = '';
-            showToast('Tranzakció mentve');
-            checkLimits(categoryId);
-            loadTransactions();
-        }
-
-        async function loadTransactions() {
-            const txs = await db.transactions.orderBy('date').reverse().toArray();
-            const cats = await db.categories.toArray();
-            const catMap = cats.reduce((acc, c) => ({...acc, [c.id]: c}), {});
-            
-            const list = document.getElementById('tx-list');
-            list.innerHTML = '<h3>Eddigi tranzakciók</h3>';
-            
-            txs.forEach(tx => {
-                const cat = catMap[tx.categoryId];
-                const div = document.createElement('div');
-                div.className = 'list-item';
-                div.innerHTML = `
-                    <div>
-                        <strong>${cat ? cat.name : 'Törölt kategória'}</strong><br>
-                        <small>${tx.date} | ${tx.note}</small>
-                    </div>
-                    <div>
-                        <span style="color: ${tx.amount < 0 ? 'var(--color-danger)' : 'var(--color-primary)'}">
-                            ${formatMoney(tx.amount)}
-                        </span>
-                        <button onclick="deleteTx(${tx.id})" style="background:transparent; color:var(--color-danger); padding:0; width:auto; margin-left:10px;">🗑</button>
-                    </div>
-                `;
-                list.appendChild(div);
+        function setupCurrencyInputs() {
+            if (!appState.currency) return;
+            const conf = CURRENCY_CONFIG[appState.currency];
+            document.querySelectorAll('.currency-wrapper').forEach(wrapper => {
+                wrapper.innerHTML = '';
+                const inputId = wrapper.getAttribute('data-input');
+                const span = document.createElement('span');
+                span.className = 'currency-symbol';
+                span.textContent = conf.symbol;
+                
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = 'any';
+                input.id = inputId;
+                
+                if (conf.pos === 'before') {
+                    wrapper.appendChild(span);
+                    if(conf.space) span.style.marginRight = '4px';
+                    wrapper.appendChild(input);
+                } else {
+                    wrapper.appendChild(input);
+                    if(conf.space) span.style.marginLeft = '4px';
+                    wrapper.appendChild(span);
+                }
             });
         }
 
-        async function deleteTx(id) {
-            await db.transactions.delete(id);
-            showToast('Törölve');
-            loadTransactions();
-            loadDashboard();
-        }
+        // -----------------------------------------
+        // 4. Initialization & Navigation
+        // -----------------------------------------
+        const app = {
+            async init() {
+                // Check standalone mode
+                if (!window.matchMedia('(display-mode: standalone)').matches && !navigator.standalone) {
+                    document.getElementById('install-banner').classList.remove('hidden');
+                }
 
-        // Categories & Limits
-        async function saveCategory() {
-            const name = document.getElementById('cat-name').value;
-            const color = document.getElementById('cat-color').value;
-            const limit = parseFloat(document.getElementById('cat-limit').value) || null;
-
-            if (!name) return;
-
-            await db.categories.add({ name, color, monthlyLimit: limit });
-            document.getElementById('cat-name').value = '';
-            document.getElementById('cat-limit').value = '';
-            showToast('Kategória mentve');
-            loadCategories();
-        }
-
-        async function loadCategories() {
-            const cats = await db.categories.toArray();
-            const list = document.getElementById('cat-list');
-            list.innerHTML = '<h3>Kategóriák</h3>';
-            cats.forEach(c => {
-                const div = document.createElement('div');
-                div.className = 'list-item';
-                div.innerHTML = `
-                    <div style="display:flex; align-items:center;">
-                        <span style="display:inline-block; width:16px; height:16px; background:${c.color}; border-radius:50%; margin-right:8px;"></span>
-                        ${c.name}
-                    </div>
-                    <div>
-                        <small>${c.monthlyLimit ? `Limit: ${formatMoney(c.monthlyLimit)}` : 'Nincs limit'}</small>
-                    </div>
-                `;
-                list.appendChild(div);
-            });
-            loadCategoriesForSelect('limit-transfer-from');
-        }
-
-        async function loadCategoriesForSelect(selectId) {
-            const cats = await db.categories.toArray();
-            const sel = document.getElementById(selectId);
-            sel.innerHTML = cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-        }
-
-        let currentOverBudgetCatId = null;
-        let currentOverBudgetAmount = 0;
-
-        async function checkLimits(categoryId) {
-            const cat = await db.categories.get(categoryId);
-            if (!cat || !cat.monthlyLimit) return;
-
-            const d = new Date();
-            const monthStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-            const txs = await db.transactions.where('categoryId').equals(categoryId).toArray();
+                // Check settings
+                const currencySet = await db.settings.get('currency');
+                if (currencySet) {
+                    appState.currency = currencySet.value;
+                    setupCurrencyInputs();
+                    this.navigate('dashboard');
+                } else {
+                    document.getElementById('currency-modal').classList.remove('hidden');
+                }
+            },
             
-            const spent = txs.filter(t => t.date.startsWith(monthStr) && t.amount < 0)
-                             .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-            
-            if (spent > cat.monthlyLimit) {
-                const diff = spent - cat.monthlyLimit;
-                document.getElementById('limit-transfer-section').style.display = 'block';
-                document.getElementById('limit-warning-text').innerText = `A(z) ${cat.name} kategória túllépte a limitet ${formatMoney(diff)}-val/vel.`;
-                currentOverBudgetCatId = categoryId;
-                currentOverBudgetAmount = diff;
-            }
-        }
+            async saveCurrency() {
+                const val = document.getElementById('currency-select').value;
+                await db.settings.put({ key: 'currency', value: val });
+                appState.currency = val;
+                document.getElementById('currency-modal').classList.add('hidden');
+                setupCurrencyInputs();
+                
+                // Add default categories
+                const catCount = await db.categories.count();
+                if (catCount === 0) {
+                    await db.categories.bulkAdd([
+                        { name: 'Élelmiszer', icon: '🛒', color: '#ff9800', monthlyLimit: null },
+                        { name: 'Rezsi', icon: '🏠', color: '#2196f3', monthlyLimit: null },
+                        { name: 'Fizetés', icon: '💰', color: '#4caf50', monthlyLimit: null }
+                    ]);
+                }
+                this.navigate('dashboard');
+            },
 
-        async function transferLimit() {
-            const fromCatId = parseInt(document.getElementById('limit-transfer-from').value);
-            if (fromCatId === currentOverBudgetCatId) return alert('Válassz másik kategóriát!');
+            async navigate(view, params = {}) {
+                document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+                document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+                
+                if(view.startsWith('transaction-form')) {
+                    document.getElementById('view-transaction-form').classList.remove('hidden');
+                    await this.renderTransactionForm(params);
+                } else if(view === 'category-form') {
+                    document.getElementById('view-category-form').classList.remove('hidden');
+                } else {
+                    document.getElementById(`view-${view}`).classList.remove('hidden');
+                    const tab = Array.from(document.querySelectorAll('.tab-item')).find(t => t.innerText.includes(
+                        view==='dashboard'?'Áttekintés':view==='transactions'?'Tételek':view==='categories'?'Kategóriák':view==='savings'?'Célok':'Fotó'
+                    ));
+                    if(tab) tab.classList.add('active');
+                    
+                    if (view === 'dashboard') await this.renderDashboard();
+                    if (view === 'transactions') await this.renderTransactions();
+                    if (view === 'categories') await this.renderCategories();
+                    if (view === 'savings') await this.renderSavings();
+                }
+                appState.currentView = view;
+            },
 
-            const fromCat = await db.categories.get(fromCatId);
-            if (!fromCat.monthlyLimit) return alert('A kiválasztott kategóriának nincs beállított limitje!');
+            // -----------------------------------------
+            // 5. Dashboard Logic
+            // -----------------------------------------
+            async renderDashboard() {
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+                
+                const txs = await db.transactions.where('date').between(startOfMonth, endOfMonth).toArray();
+                const categories = await db.categories.toArray();
+                
+                let income = 0, expense = 0;
+                const catTotals = {};
 
-            // Számítsuk ki a fromCat aktuális költését
-            const d = new Date();
-            const monthStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-            const txs = await db.transactions.where('categoryId').equals(fromCatId).toArray();
-            const spent = txs.filter(t => t.date.startsWith(monthStr) && t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
-            
-            const remaining = fromCat.monthlyLimit - spent;
-            if (remaining < currentOverBudgetAmount) {
-                return alert(`Nincs elég maradék a(z) ${fromCat.name} kategóriában! Maradék: ${formatMoney(remaining)}`);
-            }
+                txs.forEach(t => {
+                    if (t.amount > 0) income += t.amount;
+                    else {
+                        const absAmt = Math.abs(t.amount);
+                        expense += absAmt;
+                        catTotals[t.categoryId] = (catTotals[t.categoryId] || 0) + absAmt;
+                    }
+                });
 
-            // Módosítsuk a limiteket
-            const toCat = await db.categories.get(currentOverBudgetCatId);
-            await db.categories.update(fromCatId, { monthlyLimit: fromCat.monthlyLimit - currentOverBudgetAmount });
-            await db.categories.update(currentOverBudgetCatId, { monthlyLimit: toCat.monthlyLimit + currentOverBudgetAmount });
+                document.getElementById('dash-balance').textContent = formatCurrency(income - expense);
+                document.getElementById('dash-income-expense').innerHTML = `Bevétel: <span style="color:var(--color-primary)">${formatCurrency(income)}</span> | Kiadás: <span style="color:var(--color-danger)">${formatCurrency(expense)}</span>`;
 
-            document.getElementById('limit-transfer-section').style.display = 'none';
-            showToast('Limit sikeresen átcsoportosítva');
-            loadCategories();
-        }
+                // Render Chart
+                const ctx = document.getElementById('expenseChart').getContext('2d');
+                if (appState.chartInstance) appState.chartInstance.destroy();
+                
+                const labels = [];
+                const data = [];
+                const bgColors = [];
+                
+                for (const [catId, total] of Object.entries(catTotals)) {
+                    const cat = categories.find(c => c.id == catId);
+                    labels.push(cat ? `${cat.icon} ${cat.name}` : 'Egyéb');
+                    data.push(total);
+                    bgColors.push(cat ? cat.color : '#999');
+                }
 
-        // Dashboard & Prediction
-        async function loadDashboard() {
-            const txs = await db.transactions.toArray();
-            const balance = txs.reduce((sum, t) => sum + t.amount, 0);
-            document.getElementById('dashboard-balance').innerText = formatMoney(balance);
-            document.getElementById('dashboard-balance').style.color = balance < 0 ? 'var(--color-danger)' : 'var(--color-text)';
+                if(data.length === 0) {
+                    labels.push('Nincs adat');
+                    data.push(1);
+                    bgColors.push('#eee');
+                }
 
-            // Pie Chart Data (Aktuális hónap kiadásai)
-            const d = new Date();
-            const monthStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-            const cats = await db.categories.toArray();
-            const catMap = cats.reduce((acc, c) => ({...acc, [c.id]: c}), {});
-            
-            const monthExpenses = txs.filter(t => t.date.startsWith(monthStr) && t.amount < 0);
-            const expenseByCat = {};
-            monthExpenses.forEach(t => {
-                expenseByCat[t.categoryId] = (expenseByCat[t.categoryId] || 0) + Math.abs(t.amount);
-            });
+                appState.chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0 }] },
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
 
-            const chartData = {
-                labels: Object.keys(expenseByCat).map(id => catMap[id] ? catMap[id].name : 'Ismeretlen'),
-                datasets: [{
-                    data: Object.values(expenseByCat),
-                    backgroundColor: Object.keys(expenseByCat).map(id => catMap[id] ? catMap[id].color : '#ccc')
-                }]
-            };
-
-            const ctx = document.getElementById('expenseChart').getContext('2d');
-            if (chartInstance) chartInstance.destroy();
-            chartInstance = new Chart(ctx, {
-                type: 'pie',
-                data: chartData,
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-            });
-
-            // Prediction
-            const predEl = document.getElementById('dashboard-prediction');
-            const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-            const daysElapsed = d.getDate();
-            
-            if (monthExpenses.length < 3) {
-                predEl.innerText = 'Még nincs elég adat a predikcióhoz.';
-                predEl.style.color = 'inherit';
-            } else {
-                let predictionText = '';
-                for (const catId of Object.keys(expenseByCat)) {
-                    const cat = catMap[catId];
-                    if (cat && cat.monthlyLimit) {
-                        const dailyAvg = expenseByCat[catId] / daysElapsed;
-                        const projected = dailyAvg * daysInMonth;
-                        if (projected > cat.monthlyLimit) {
-                            const overAmount = projected - cat.monthlyLimit;
-                            predictionText += `Ha így folytatod, hónap végéig kb. ${formatMoney(overAmount)}-val léped túl a(z) ${cat.name} limitet.\n`;
+                // Prediction Logic
+                const predEl = document.getElementById('dash-prediction');
+                if (txs.filter(t => t.amount < 0).length < 3) {
+                    predEl.textContent = 'Még nincs elég adat a predikcióhoz.';
+                } else {
+                    const daysPassed = now.getDate();
+                    const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                    const dailyAvg = expense / daysPassed;
+                    const predictedTotal = dailyAvg * totalDays;
+                    
+                    // Check limit violations based on prediction
+                    let warningText = '';
+                    for (const cat of categories) {
+                        if (cat.monthlyLimit) {
+                            const catSpent = catTotals[cat.id] || 0;
+                            const catPred = (catSpent / daysPassed) * totalDays;
+                            if (catPred > cat.monthlyLimit) {
+                                const over = catPred - cat.monthlyLimit;
+                                warningText = `Ha így folytatod, hónap végéig kb. ${formatCurrency(over)}-tal léped túl a(z) ${cat.name} limitet.`;
+                                break;
+                            }
                         }
                     }
+                    predEl.textContent = warningText || `Várható havi kiadásod: ${formatCurrency(predictedTotal)}`;
                 }
-                predEl.innerText = predictionText || 'Jó úton haladsz, a limitjeiden belül vagy!';
-                predEl.style.color = predictionText ? 'var(--color-danger)' : 'var(--color-primary)';
-            }
-        }
+            },
 
-        // Savings Goals
-        async function saveSavingsGoal() {
-            const name = document.getElementById('sav-name').value;
-            const targetAmount = parseFloat(document.getElementById('sav-target').value);
-            const currentAmount = parseFloat(document.getElementById('sav-current').value) || 0;
-            const deadline = document.getElementById('sav-deadline').value || null;
+            // -----------------------------------------
+            // 6. Transactions CRUD
+            // -----------------------------------------
+            async renderTransactions() {
+                const txs = await db.transactions.orderBy('date').reverse().toArray();
+                const categories = await db.categories.toArray();
+                const list = document.getElementById('transaction-list');
+                list.innerHTML = '';
+                
+                if(txs.length === 0) {
+                    list.innerHTML = '<p class="text-center text-light">Nincsenek tranzakciók.</p>';
+                    return;
+                }
+                
+                txs.forEach(t => {
+                    const cat = categories.find(c => c.id == t.categoryId);
+                    const isInc = t.amount > 0;
+                    const el = document.createElement('div');
+                    el.className = 'list-item';
+                    el.innerHTML = `
+                        <div class="item-icon" style="background-color: ${cat?.color||'#ccc'}20; border: 1px solid ${cat?.color||'#ccc'};">${cat?.icon||'🏷️'}</div>
+                        <div class="item-details">
+                            <div class="item-title">${cat?.name||'Ismeretlen'}</div>
+                            <div class="item-subtitle">${new Date(t.date).toLocaleDateString('hu-HU')} ${t.note ? ' - '+t.note : ''}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: bold; color: ${isInc ? 'var(--color-primary)' : 'var(--color-text)'}">${isInc?'+':''}${formatCurrency(t.amount)}</div>
+                            <button onclick="app.deleteTransaction(${t.id})" class="danger" style="padding: 4px 8px; font-size: 12px; margin-top: 4px; width: auto; min-height: auto;">Törlés</button>
+                        </div>
+                    `;
+                    list.appendChild(el);
+                });
+            },
 
-            if (!name || !targetAmount) return alert('Név és célösszeg kötelező!');
+            async renderTransactionForm(params) {
+                const catSelect = document.getElementById('tx-category');
+                const categories = await db.categories.toArray();
+                catSelect.innerHTML = categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+                
+                document.getElementById('tx-id').value = '';
+                document.getElementById('tx-amount').value = '';
+                document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+                document.getElementById('tx-note').value = '';
+                document.getElementById('tx-type').value = params.type || 'expense';
 
-            // Töröljük a régit, csak 1 aktív lehet a feladat szerint
-            await db.savingsGoals.clear();
-            await db.savingsGoals.add({ name, targetAmount, currentAmount, deadline, linkedCategoryIds: [] });
-            
-            document.getElementById('sav-name').value = '';
-            document.getElementById('sav-target').value = '';
-            document.getElementById('sav-current').value = '';
-            showToast('Cél mentve');
-            loadSavings();
-        }
+                if (params.amount) document.getElementById('tx-amount').value = params.amount;
+                if (params.date) document.getElementById('tx-date').value = params.date;
+                if (params.note) document.getElementById('tx-note').value = params.note;
+            },
 
-        let activeGoalId = null;
-        async function loadSavings() {
-            const goals = await db.savingsGoals.toArray();
-            const card = document.getElementById('active-savings-card');
-            
-            if (goals.length > 0) {
-                const goal = goals[0];
-                activeGoalId = goal.id;
-                card.style.display = 'block';
-                document.getElementById('act-sav-name').innerText = goal.name;
-                const pct = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
-                document.getElementById('act-sav-progress-text').innerText = `${formatMoney(goal.currentAmount)} / ${formatMoney(goal.targetAmount)} (${Math.round(pct)}%)`;
-                document.getElementById('act-sav-deadline').innerText = goal.deadline || '';
-                document.getElementById('act-sav-bar').style.width = `${pct}%`;
-            } else {
-                card.style.display = 'none';
-            }
-        }
+            async saveTransaction() {
+                const amtInput = parseFloat(document.getElementById('tx-amount').value);
+                if(isNaN(amtInput) || amtInput <= 0) { alert('Helytelen összeg!'); return; }
+                const type = document.getElementById('tx-type').value;
+                
+                const tx = {
+                    amount: type === 'expense' ? -amtInput : amtInput,
+                    categoryId: parseInt(document.getElementById('tx-category').value),
+                    date: document.getElementById('tx-date').value,
+                    note: document.getElementById('tx-note').value,
+                    source: 'manual',
+                    currency: appState.currency
+                };
+                
+                const id = document.getElementById('tx-id').value;
+                if(id) await db.transactions.update(parseInt(id), tx);
+                else await db.transactions.add(tx);
+                
+                showToast('Tranzakció mentve!');
+                this.navigate('dashboard');
+            },
 
-        async function addToSavings() {
-            if (!activeGoalId) return;
-            const goal = await db.savingsGoals.get(activeGoalId);
-            const amountStr = prompt(`Mennyit adsz hozzá? (Aktuális: ${activeCurrency})`);
-            if (!amountStr) return;
-            const amt = parseFloat(amountStr);
-            if (isNaN(amt) || amt <= 0) return;
+            async deleteTransaction(id) {
+                if(confirm('Biztosan törlöd?')) {
+                    await db.transactions.delete(id);
+                    this.renderTransactions();
+                    showToast('Törölve');
+                }
+            },
 
-            await db.savingsGoals.update(activeGoalId, { currentAmount: goal.currentAmount + amt });
-            showToast('Hozzáadva a célhoz');
-            loadSavings();
-        }
+            // -----------------------------------------
+            // 7. Categories & Limits
+            // -----------------------------------------
+            async renderCategories() {
+                const categories = await db.categories.toArray();
+                
+                // Get current month spendings for limits
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+                const txs = await db.transactions.where('date').between(start, end).toArray();
+                
+                const spentMap = {};
+                txs.forEach(t => { if(t.amount < 0) spentMap[t.categoryId] = (spentMap[t.categoryId]||0) + Math.abs(t.amount); });
 
-        // OCR with Tesseract
-        async function processOCR() {
-            const fileInput = document.getElementById('ocr-file');
-            const statusEl = document.getElementById('ocr-status');
-            const rawEl = document.getElementById('ocr-raw');
-            const formCard = document.getElementById('ocr-form-card');
-            
-            if (!fileInput.files.length) return alert('Válassz ki egy képet!');
-            
-            const file = fileInput.files[0];
-            const reader = new FileReader();
-            
-            reader.onload = async () => {
-                statusEl.innerText = 'Feldolgozás on-device... kérlek várj!';
-                rawEl.innerText = '';
-                formCard.style.display = 'none';
+                const list = document.getElementById('category-list');
+                list.innerHTML = '';
+                
+                categories.forEach(c => {
+                    const spent = spentMap[c.id] || 0;
+                    let limitHtml = '';
+                    
+                    if (c.monthlyLimit) {
+                        const over = spent > c.monthlyLimit;
+                        limitHtml = `
+                            <div style="font-size:12px; margin-top:4px;">Keret: ${formatCurrency(spent)} / ${formatCurrency(c.monthlyLimit)}</div>
+                            <progress value="${spent}" max="${c.monthlyLimit}"></progress>
+                            ${over ? `<div class="overflow-badge">Túllépés: ${formatCurrency(spent - c.monthlyLimit)}</div>
+                                      <button onclick="app.promptTransfer(${c.id}, ${spent - c.monthlyLimit})" style="padding:4px 8px; font-size:12px; margin-top:4px; min-height:auto;">Kiegyenlítés máshonnan</button>` : ''}
+                        `;
+                    }
+                    
+                    const el = document.createElement('div');
+                    el.className = 'list-item';
+                    el.style.flexDirection = 'column';
+                    el.style.alignItems = 'stretch';
+                    el.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center;">
+                                <div class="item-icon" style="background:${c.color}20; border:1px solid ${c.color}">${c.icon}</div>
+                                <div class="item-title" style="margin:0;">${c.name}</div>
+                            </div>
+                            <button onclick="app.deleteCategory(${c.id})" class="danger" style="width:auto; padding:4px 8px; min-height:auto; font-size:12px;">Törlés</button>
+                        </div>
+                        ${limitHtml}
+                    `;
+                    list.appendChild(el);
+                });
+            },
+
+            showCategoryForm() {
+                document.getElementById('cat-id').value = '';
+                document.getElementById('cat-name').value = '';
+                document.getElementById('cat-icon').value = '';
+                document.getElementById('cat-limit').value = '';
+                this.navigate('category-form');
+            },
+
+            async saveCategory() {
+                const name = document.getElementById('cat-name').value;
+                if(!name) { alert('Név kötelező'); return; }
+                const limVal = document.getElementById('cat-limit').value;
+                const cat = {
+                    name,
+                    icon: document.getElementById('cat-icon').value || '🏷️',
+                    color: document.getElementById('cat-color').value,
+                    monthlyLimit: limVal ? parseFloat(limVal) : null
+                };
+                await db.categories.add(cat);
+                showToast('Kategória mentve');
+                this.navigate('categories');
+            },
+
+            async deleteCategory(id) {
+                if(confirm('Biztosan törlöd? A tranzakciók megmaradnak, de kategória nélkül.')) {
+                    await db.categories.delete(id);
+                    this.renderCategories();
+                }
+            },
+
+            async promptTransfer(targetCatId, overAmount) {
+                const categories = await db.categories.toArray();
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+                const txs = await db.transactions.where('date').between(start, end).toArray();
+                const spentMap = {};
+                txs.forEach(t => { if(t.amount < 0) spentMap[t.categoryId] = (spentMap[t.categoryId]||0) + Math.abs(t.amount); });
+
+                const select = document.getElementById('transfer-source-cat');
+                const err = document.getElementById('transfer-error');
+                const btn = document.getElementById('transfer-confirm-btn');
+                select.innerHTML = '';
+                
+                let hasValidSource = false;
+                categories.forEach(c => {
+                    if(c.id !== targetCatId && c.monthlyLimit) {
+                        const spent = spentMap[c.id] || 0;
+                        const remaining = c.monthlyLimit - spent;
+                        if(remaining >= overAmount) {
+                            select.innerHTML += `<option value="${c.id}">${c.name} (Maradék: ${formatCurrency(remaining)})</option>`;
+                            hasValidSource = true;
+                        }
+                    }
+                });
+
+                document.getElementById('transfer-desc').textContent = `Szükséges összeg: ${formatCurrency(overAmount)}`;
+                document.getElementById('limit-transfer-modal').classList.remove('hidden');
+
+                if(!hasValidSource) {
+                    select.classList.add('hidden');
+                    err.classList.remove('hidden');
+                    btn.classList.add('hidden');
+                } else {
+                    select.classList.remove('hidden');
+                    err.classList.add('hidden');
+                    btn.classList.remove('hidden');
+                    appState.pendingTransfer = { targetId: targetCatId, amount: overAmount };
+                }
+            },
+
+            async executeTransfer() {
+                if(!appState.pendingTransfer) return;
+                const sourceId = parseInt(document.getElementById('transfer-source-cat').value);
+                const { targetId, amount } = appState.pendingTransfer;
+                
+                const sourceCat = await db.categories.get(sourceId);
+                const targetCat = await db.categories.get(targetId);
+                
+                sourceCat.monthlyLimit -= amount;
+                targetCat.monthlyLimit += amount;
+                
+                await db.categories.put(sourceCat);
+                await db.categories.put(targetCat);
+                
+                document.getElementById('limit-transfer-modal').classList.add('hidden');
+                showToast('Limit sikeresen átvezetve!');
+                this.renderCategories();
+            },
+
+            // -----------------------------------------
+            // 8. Savings Goals
+            // -----------------------------------------
+            async renderSavings() {
+                const goals = await db.savingsGoals.toArray();
+                const activeContainer = document.getElementById('savings-active');
+                if (goals.length > 0) {
+                    const g = goals[0]; // One active goal required by prompt
+                    const perc = Math.min(100, (g.currentAmount / g.targetAmount) * 100).toFixed(1);
+                    activeContainer.innerHTML = `
+                        <h3>${g.name}</h3>
+                        <p>${formatCurrency(g.currentAmount)} / ${formatCurrency(g.targetAmount)}</p>
+                        <progress value="${g.currentAmount}" max="${g.targetAmount}"></progress>
+                        <p style="text-align:right; font-size:12px;">${perc}%</p>
+                        <button onclick="app.addToSavings(${g.id})" style="margin-top:12px;">Befizetés rögzítése</button>
+                    `;
+                    activeContainer.classList.remove('hidden');
+                    document.getElementById('savings-form-card').classList.add('hidden');
+                } else {
+                    activeContainer.classList.add('hidden');
+                    document.getElementById('savings-form-card').classList.remove('hidden');
+                }
+            },
+
+            async saveSavingsGoal() {
+                const name = document.getElementById('sav-name').value;
+                const target = parseFloat(document.getElementById('sav-target').value);
+                const current = parseFloat(document.getElementById('sav-current').value) || 0;
+                
+                if(!name || !target) { alert('Hiányzó adatok!'); return; }
+                
+                await db.savingsGoals.add({ name, targetAmount: target, currentAmount: current, linkedCategoryIds: [] });
+                showToast('Cél létrehozva');
+                this.renderSavings();
+            },
+
+            async addToSavings(id) {
+                const amountStr = prompt('Befizetendő összeg:');
+                if(!amountStr) return;
+                const amt = parseFloat(amountStr);
+                if(isNaN(amt) || amt<=0) return;
+                
+                const g = await db.savingsGoals.get(id);
+                g.currentAmount += amt;
+                await db.savingsGoals.put(g);
+                showToast('Hozzáadva!');
+                this.renderSavings();
+            },
+
+            // -----------------------------------------
+            // 9. OCR Processing (Tesseract)
+            // -----------------------------------------
+            async processOCR(event) {
+                const file = event.target.files[0];
+                if(!file) return;
+                
+                const statusEl = document.getElementById('ocr-status');
+                const rawEl = document.getElementById('ocr-raw-text');
+                statusEl.textContent = 'Szöveg felismerése folyamatban... (Ez eltarthat egy ideig)';
+                rawEl.classList.add('hidden');
+                
+                const imgUrl = URL.createObjectURL(file);
                 
                 try {
-                    const result = await Tesseract.recognize(reader.result, 'eng+hun');
-                    const text = result.data.text;
-                    rawEl.innerText = text;
-                    statusEl.innerText = 'Feldolgozás kész. Adatok kinyerése...';
-
-                    let amount = null;
-                    let dateStr = null;
-
-                    // Regex extractors
+                    const worker = Tesseract.createWorker({
+                        logger: m => { if(m.status === 'recognizing text') statusEl.textContent = `Felismerés: ${Math.round(m.progress * 100)}%`; }
+                    });
+                    await worker.load();
+                    await worker.loadLanguage('eng+hun');
+                    await worker.initialize('eng+hun');
+                    
+                    const { data: { text } } = await worker.recognize(imgUrl);
+                    await worker.terminate();
+                    
+                    rawEl.textContent = text;
+                    rawEl.classList.remove('hidden');
+                    
+                    // Regex Extract based on prompt
                     const regexHUF = /\d[\d\s]*\s?(Ft|HUF)/i;
                     const regexEUR = /€?\s?\d+[.,]\d{2}/;
                     const regexUSD = /\$?\s?\d+[.,]\d{2}/;
                     const regexDate1 = /\d{4}[-./]\d{2}[-./]\d{2}/;
                     const regexDate2 = /\d{2}[-./]\d{2}[-./]\d{4}/;
-
-                    let amountMatch = null;
-                    if (activeCurrency === 'HUF') amountMatch = text.match(regexHUF);
-                    if (activeCurrency === 'EUR') amountMatch = text.match(regexEUR);
-                    if (activeCurrency === 'USD') amountMatch = text.match(regexUSD);
-
-                    if (amountMatch) {
-                        let cleanStr = amountMatch[0].replace(/[^\d.,]/g, '').replace(',', '.');
-                        amount = parseFloat(cleanStr);
+                    
+                    let amountStr = '';
+                    const matchHUF = text.match(regexHUF);
+                    const matchEUR = text.match(regexEUR);
+                    const matchUSD = text.match(regexUSD);
+                    
+                    if (appState.currency === 'HUF' && matchHUF) amountStr = matchHUF[0].replace(/[^\d]/g, '');
+                    else if (appState.currency === 'EUR' && matchEUR) amountStr = matchEUR[0].replace(/[^\d.,]/g, '').replace(',','.');
+                    else if (appState.currency === 'USD' && matchUSD) amountStr = matchUSD[0].replace(/[^\d.,]/g, '');
+                    else if (matchHUF) amountStr = matchHUF[0].replace(/[^\d]/g, ''); // Fallbacks
+                    else if (matchEUR) amountStr = matchEUR[0].replace(/[^\d.,]/g, '').replace(',','.');
+                    else if (matchUSD) amountStr = matchUSD[0].replace(/[^\d.,]/g, '');
+                    
+                    let dateStr = '';
+                    const mDate1 = text.match(regexDate1);
+                    const mDate2 = text.match(regexDate2);
+                    if (mDate1) dateStr = mDate1[0].replace(/[./]/g, '-'); // Rough normalize to YYYY-MM-DD
+                    else if (mDate2) {
+                        const p = mDate2[0].split(/[-./]/);
+                        dateStr = `${p[2]}-${p[1]}-${p[0]}`; // DD-MM-YYYY to YYYY-MM-DD
                     }
-
-                    const dateMatch = text.match(regexDate1) || text.match(regexDate2);
-                    if (dateMatch) {
-                        dateStr = dateMatch[0].replace(/[/.]/g, '-');
-                        if(dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
-                            const p = dateStr.split('-');
-                            dateStr = `${p[2]}-${p[1]}-${p[0]}`;
-                        }
-                    }
-
-                    if (amount || dateStr) {
-                        formCard.style.display = 'block';
-                        document.getElementById('ocr-amount').value = amount || '';
-                        document.getElementById('ocr-date').value = dateStr || '';
-                        statusEl.innerText = 'Kinyert adatok (Kérlek ellenőrizd!):';
+                    
+                    if (amountStr) {
+                        statusEl.textContent = 'Sikeres azonosítás! Kérlek ellenőrizd az adatokat.';
+                        setTimeout(() => {
+                            this.navigate('transaction-form', { 
+                                amount: parseFloat(amountStr), 
+                                date: dateStr || new Date().toISOString().split('T')[0],
+                                note: 'OCR Scan' 
+                            });
+                        }, 1500);
                     } else {
-                        statusEl.innerText = 'Nem sikerült automatikusan felismerni, kérlek töltsd ki manuálisan a Tranzakciók fülön.';
+                        statusEl.textContent = 'Nem sikerült automatikusan felismerni, kérlek töltsd ki manuálisan.';
                     }
-
-                } catch (err) {
-                    statusEl.innerText = 'Hiba az OCR során.';
-                    console.error(err);
+                } catch (e) {
+                    statusEl.textContent = 'Hiba történt a feldolgozás során.';
+                    console.error(e);
                 }
-            };
-            reader.readAsDataURL(file);
-        }
+            }
+        };
 
-        async function saveOCRTransaction() {
-            const amount = parseFloat(document.getElementById('ocr-amount').value);
-            const date = document.getElementById('ocr-date').value;
+        // -----------------------------------------
+        // 10. PWA Setup (Install & Update Flow)
+        // -----------------------------------------
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('install-banner').classList.remove('hidden');
+        });
+        
+        document.getElementById('btn-install').addEventListener('click', async () => {
+            if(deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if(outcome === 'accepted') document.getElementById('install-banner').classList.add('hidden');
+                deferredPrompt = null;
+            }
+        });
 
-            if (!amount || !date) return alert('Hiányzó összeg vagy dátum!');
-
-            // Alapból kiadásnak vesszük, kategória nélkül
-            await db.transactions.add({
-                amount: -Math.abs(amount),
-                categoryId: 0,
-                date: date,
-                note: 'OCR Felismerés',
-                source: 'ocr',
-                currency: activeCurrency
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js').then(reg => {
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            const toast = document.getElementById('update-toast');
+                            toast.classList.remove('hidden');
+                            document.getElementById('btn-update').onclick = () => {
+                                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                            };
+                        }
+                    });
+                });
             });
 
-            document.getElementById('ocr-form-card').style.display = 'none';
-            document.getElementById('ocr-file').value = '';
-            document.getElementById('ocr-raw').innerText = '';
-            document.getElementById('ocr-status').innerText = '';
-            showToast('OCR tranzakció mentve');
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    window.location.reload();
+                    refreshing = true;
+                }
+            });
         }
+
+        // Start App
+        window.onload = () => app.init();
 
     </script>
 </body>
