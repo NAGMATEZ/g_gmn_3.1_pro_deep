@@ -1,63 +1,80 @@
 // service-worker.js
-const CACHE_NAME = 'budget-pwa-v1';
-const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon-192.svg',
-  './icon-512.svg'
+const CACHE_NAME = 'budget-static-v1';
+const DYNAMIC_CACHE = 'budget-dynamic-v1';
+
+const STATIC_ASSETS = [
+    './',
+    './index.html',
+    './manifest.json',
+    './icon-192.png',
+    './icon-512.png'
 ];
 
+// Install Event - immediate static cache
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
-  );
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.addAll(STATIC_ASSETS);
         })
-      );
-    })
-  );
-  self.clients.claim();
+    );
 });
 
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        const isCDN = event.request.url.includes('unpkg.com') || 
-                      event.request.url.includes('cdn.jsdelivr.net') || 
-                      event.request.url.includes('tesseract.js');
-        
-        if (isCDN && networkResponse.ok) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-        }
-        return networkResponse;
-      }).catch(() => {
-        // Offline fallback
-      });
-    })
-  );
+// Activate Event - cleanup old caches
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.filter(name => name !== CACHE_NAME && name !== DYNAMIC_CACHE)
+                          .map(name => caches.delete(name))
+            );
+        })
+    );
 });
 
+// Message Event - Update flow
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+
+// Fetch Event - Cache-first for local, Stale-while-revalidate / Network-first + cache for CDNs
+self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+
+    // Cross-origin requests (CDNs: Dexie, Chart, Tesseract JS & WebAssembly files)
+    if (url.origin !== location.origin) {
+        event.respondWith(
+            caches.match(event.request).then((cachedResponse) => {
+                const fetchPromise = fetch(event.request).then((networkResponse) => {
+                    // Only cache successful responses
+                    if (networkResponse && networkResponse.status === 200) {
+                        const responseToCache = networkResponse.clone();
+                        caches.open(DYNAMIC_CACHE).then((cache) => {
+                            cache.put(event.request, responseToCache);
+                        });
+                    }
+                    return networkResponse;
+                }).catch(() => cachedResponse); // fallback to cache if offline
+
+                // Return cached instantly if available, otherwise fetch
+                return cachedResponse || fetchPromise;
+            })
+        );
+    } 
+    // Local assets (Cache-first)
+    else {
+        event.respondWith(
+            caches.match(event.request).then((cachedResponse) => {
+                if (cachedResponse) return cachedResponse;
+                return fetch(event.request).then((networkResponse) => {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
+                    return networkResponse;
+                });
+            })
+        );
+    }
 });
